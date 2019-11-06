@@ -63,10 +63,10 @@ def dump_data():
                      .filter(DataRegion.pid == province.id)
                      .order_by(DataRegion.name_pinyin).all())
             for city in cities:
-                city_list.append(city.name)
-            province_dict = {province.name: city_list}
+                city_list.append({"name": city.name})
+            province_dict = {"city": city_list, "name": province.name}
             province_list.append(province_dict)
-        country_dict = {country.name: province_list}
+        country_dict = {"province": province_list, 'country': country.name}
         res.append(country_dict)
     with open('data_region_android.json', 'w', encoding='utf-8') as file:
         json.dump(res, file, indent=4, sort_keys=True)
