@@ -10,20 +10,21 @@ from pypinyin import pinyin, lazy_pinyin, Style
 Base = declarative_base()
 
 
-# 定义User对象
-class DataRegion(Base):
+class CityCn(Base):
     # 表的名字:
-    __tablename__ = 'data_region'
+    __tablename__ = 'city_cn'
 
     # 表的结构:
     id = Column(Integer(), primary_key=True)
-    pid = Column(Integer())
-    path = Column(String(255))
-    level = Column(String())
-    name = Column(String())
-    name_en = Column(String())
-    name_pinyin = Column(String())
-    code = Column(String())
+    country = Column(String(255))
+    state = Column(String())
+    city = Column(String())
+    state_code = Column(String())
+    city_code = Column(String())
+    country_code = Column(String())
+    country_pinyin = Column(String())
+    state_pinyin = Column(String())
+    city_pinyin = Column(String())
 
 
 # 初始化数据库连接:
@@ -35,40 +36,77 @@ session = DBSession()
 
 
 def pinyin_data():
-    all_rows = (session.query(DataRegion).order_by(DataRegion.id).all())
+    all_rows = (session.query(CityCn).order_by(CityCn.id).all())
     for row in all_rows:
-        name = row.name
+        # 国家
+        name = row.country
         name_pinyin_list = pinyin(name, style=Style.NORMAL)
         name_pinyin = ''
         for item_piyin in name_pinyin_list:
             name_pinyin = name_pinyin + item_piyin[0] + ' '
-        row.name_pinyin = name_pinyin
+        row.country_pinyin = name_pinyin
+
+        # 省
+        name = row.state
+        if name:
+            name_pinyin_list = pinyin(name, style=Style.NORMAL)
+            name_pinyin = ''
+            for item_piyin in name_pinyin_list:
+                name_pinyin = name_pinyin + item_piyin[0] + ' '
+            row.state_pinyin = name_pinyin
+
+        # 市
+        name = row.city
+        if name:
+            name_pinyin_list = pinyin(name, style=Style.NORMAL)
+            name_pinyin = ''
+            for item_piyin in name_pinyin_list:
+                name_pinyin = name_pinyin + item_piyin[0] + ' '
+            row.city_pinyin = name_pinyin
     session.commit()
 
 
 def dump_data():
-    res = {}
-    countries = (session.query(DataRegion)
-                 .filter(DataRegion.pid.in_(['1', '2', '3', '4', '5', '6']))
-                 .order_by(DataRegion.name_pinyin).all())
-    for country in countries:
 
-        provinces = (session.query(DataRegion)
-                     .filter(DataRegion.pid == country.id)
-                     .order_by(DataRegion.name_pinyin).all())
-        province_list = []
-        for province in provinces:
-            city_list = []
-            cities = (session.query(DataRegion)
-                     .filter(DataRegion.pid == province.id)
-                     .order_by(DataRegion.name_pinyin).all())
-            for city in cities:
-                city_list.append(city.name)
-            province_dict = {province.name: city_list}
-            province_list.append(province_dict)
-        country_dict = {country.name: province_list}
-        country_start_alph = country.name_pinyin[0:1].upper()
+    has = set()
+    res = {}
+    countries = (session.query(CityCn)
+                 .order_by(CityCn.country_pinyin).all())
+    for country in countries:
+        if country.country in has:
+            continue
+        if not country.state:
+            # 没有省
+            provinces = (session.query(CityCn)
+                         .filter(CityCn.country_code == country.country_code)
+                         .order_by(CityCn.city_pinyin).all())
+            province_list = []
+            for province in provinces:
+                province_list.append({province.city: []})
+        else:
+            # 有省
+            provinces = (session.query(CityCn)
+                         .filter(CityCn.country_code == country.country_code)
+                         .order_by(CityCn.state_pinyin).all())
+            province_list = []
+            has_province = set()
+            for province in provinces:
+                if province.state in has_province:
+                    continue
+                city_list = []
+                cities = (session.query(CityCn)
+                         .filter(CityCn.country_code == country.country_code)
+                         .filter(CityCn.state == province.state)
+                         .order_by(CityCn.city_pinyin).all())
+                for city in cities:
+                    city_list.append(city.city)
+                province_dict = {province.state: city_list}
+                province_list.append(province_dict)
+                has_province.add(province.state)
+        country_dict = {country.country: province_list}
+        country_start_alph = country.country_pinyin[0:1].upper()
         res.setdefault(country_start_alph, []).append(country_dict)
+        has.add(country.country)
     with open('data_region_ios.json', 'w', encoding='utf-8') as file:
         json.dump(res, file, indent=4, sort_keys=True)
     json.dumps(res, indent=4)
